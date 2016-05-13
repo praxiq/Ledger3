@@ -1,0 +1,3 @@
+[
+	{ "caption": "Ledger: Balance", "command": "ledger_run", "args": {"cmd": "balance"} }
+]

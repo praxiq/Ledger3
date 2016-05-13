@@ -1,0 +1,187 @@
+%YAML 1.2
+---
+name: Ledger3
+file_extensions: [ldg, ledger]
+scope: source.ledger
+# TODO: make keywords case-insensitive?
+
+variables:
+  account: '[\w\d:]+(?:\s[\w\d:]+)*' # Regex to match an account name
+  # TODO: look up all characters allowed in account name
+  commodity: '[^\s\d.,;:?!+*/^&|=@<>\](){}-]+' # Regex to match commodity name
+  # TODO: allow quoted commodity names
+  date: '\d[\d/.-]+'
+  payee: '[^;]+'
+contexts:
+  main:
+    - match: '^[;#%|*].*' # full-line, un-indented comments
+      scope: comment.line.ledger
+    - include: line_comment # TODO are comments allowed just anywhere?
+    - match: '^({{date}})(?:(?:(=)({{date}}))?\s+(?:([*!])\s+)?(?:\(([^)]*)\)\s+)?({{payee}}))?' # a transaction
+      captures:
+        1: constant.numeric.date.ledger
+        2: punctuation.edate.ledger
+        3: constant.numeric.edate.ledger
+        4: keyword.operator.cleared.ledger
+        5: string.unquoted.code.ledger
+        6: string.unquoted.payee.ledger
+      push: transaction
+    - match: '^\d' # Match when first starting to type a date, before "transaction" matches
+      scope: constant.numeric.date.ledger
+    - match: '^(account)\s+({{account}})'
+      captures:
+        1: keyword.account.ledger
+        2: other.account.ledger
+      push: account
+
+    - match: '^(apply account)\s+({{account}})'
+      captures:
+        1: keyword.apply.ledger
+        2: other.account.ledger
+
+    - match: '^(alias)\s+(\w+)(=)({{account}})'
+      captures:
+        1: keyword.alias.ledger
+        2: string.unquoted.alias.ledger
+        3: punctuation.ledger
+        4: other.account.ledger
+
+    - match: '^(assert|check|define)\s+(.*)'
+      captures:
+        1: keyword.apply.ledger
+        2: string.unquoted.expression.ledger # TODO Make this a scope
+
+    - match: '^(bucket|A)\s+({{account}})'
+      captures:
+        1: keyword.bucket.ledger
+        2: other.account.ledger
+
+    - match: '^(comment|test)'
+      push: block_comment
+
+    - match: '^(commodity)\s+({{commodity}})'
+      captures:
+        1: keyword.commodity.ledger
+        2: string.unquoted.commodity.ledger
+      push: commodity
+
+    - match: '^(fixed)\s+({{commodity}})\s+(.*)'
+      captures:
+        1: keyword.fixed.ledger
+        2: string.unquoted.commodity.ledger
+        3: string.unquoted.price.ledger
+
+    - match: '^(payee)(?:\s+(.+))?'
+      captures:
+        1: keyword.payee.ledger
+        2: string.unquoted.payee.ledger
+      push: payee
+
+    - match: '^(year|Y)(?:\s+(\d+))?'
+      captures:
+        1: keyword.year.ledger
+        2: string.unquoted.year.ledger
+
+    - match: '^(include)(?:\s+([^;]+))?'
+      captures:
+        1: keyword.include.ledger
+        2: string.unquoted.path.ledger
+
+    - match: '^(tag)(?:\s+([^;]+))?'
+      captures:
+        1: keyword.include.ledger
+        2: string.unquoted.path.ledger
+      push: tag
+
+    - match: '^(endfixed|apply tag|end apply tag|[NDCIiOobh])\s+(.*)$'
+      captures:
+        1: keyword.ledger
+        2: string.unquoted.ledger
+
+    - match: '^.*'
+      scope: invalid
+
+  transaction:
+    - meta_scope: meta.transaction.ledger
+    - include: line_comment
+    - match: '^\s+({{account}})(?:(?:  |\t)\s*([^;]*))?'
+      captures:
+        1: other.account.ledger
+        2: variable.amount.ledger
+    - match: '^(?=\S)'
+      pop: true
+
+  account: # An indented account section
+    - meta_scope: meta.account.ledger
+    - include: line_comment # TODO are comments allowed here?
+    - match: '^\s+(note|alias|payee|check|assert|eval|default)\s+(.*)$'
+      captures:
+        1: keyword.ledger
+        2: string.unquoted.ledger
+    - match: ^\s+(\w+)
+      captures:
+        1: invalid
+    - match: '^(?=\S)'
+      pop: true
+
+  commodity: # An indented commodity section
+    - meta_scope: meta.commodity.ledger
+    - include: line_comment
+    - match: '^\s+(note|format|nomarket|default)\s+(.*)$'
+      captures:
+        1: keyword.ledger
+        2: string.unquoted.ledger
+    - match: ^\s+(\w+)
+      captures:
+        1: invalid
+    - match: '^(?=\S)'
+      pop: true
+
+  payee: # An indented payee section
+    - meta_scope: meta.payee.ledger
+    - include: line_comment
+    - match: '^\s+(alias|uuid)\s+(.*)$'
+      captures:
+        1: keyword.ledger
+        2: string.unquoted.ledger
+    - match: ^\s+(\w+)
+      captures:
+        1: invalid
+    - match: '^(?=\S)'
+      pop: true
+
+  tag: # An indented payee section
+    - meta_scope: meta.tag.ledger
+    - include: line_comment
+    - match: '^\s+(check|assert)\s+(.*)$'
+      captures:
+        1: keyword.ledger
+        2: string.unquoted.ledger
+    - match: ^\s+(\w+)
+      captures:
+        1: invalid
+    - match: '^(?=\S)'
+      pop: true
+
+
+  block_comment:
+    - meta_scope: comment.block.ledger
+    - match: '^end \1.*' # TODO check if text after "end comment" should be included
+      pop: true
+
+  line_comment:
+    - match: '[;#%|*]'
+      scope: punctuation.definition.comment
+      push: line_comment_text
+
+  line_comment_text:
+    - meta_scope: comment.line.ledger
+    - match: ':([^\s:]+)(?=:)'
+      captures:
+        1: entity.name.function.tag.ledger
+    - match: '([^\s:]+):(?::)?\s(.*)'
+      captures:
+        1: entity.name.type.tag.ledger
+        2: variable.parameter.tagvalue.ledger
+    - match: '$'
+      pop: true
