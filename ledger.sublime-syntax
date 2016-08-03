@@ -26,6 +26,17 @@ contexts:
         5: string.unquoted.code.ledger
         6: string.unquoted.payee.ledger
       push: transaction
+    - match: '^(=)([^;]*)' # an automated transaction
+      captures:
+        1: keyword.punctuation.automated.ledger
+        2: string.unquoted.expression.ledger
+      push: transaction
+    - match: '^(~)([^;]*)' # a periodic (budget) transaction
+      captures:
+        1: keyword.punctuation.periodic.ledger
+        2: string.unquoted.periodic.ledger
+      push: transaction
+
     - match: '^\d' # Match when first starting to type a date, before "transaction" matches
       scope: constant.numeric.date.ledger
     - match: '^(account)\s+({{account}})'
